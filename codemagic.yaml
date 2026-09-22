@@ -1,0 +1,94 @@
+workflows:
+  ios-build:
+    name: BYPASS7 PROXY iOS build
+    instance_type: mac_mini_m2
+    environment:
+      xcode: latest
+    triggering:
+      events:
+        - tag
+      tag_patterns:
+        - pattern: build-*
+          include: true
+      cancel_previous_builds: true
+    scripts:
+      - name: Validate checkout and source
+        script: |
+          set -euo pipefail
+          echo "=== checkout ==="
+          git rev-parse HEAD
+          git status --short
+          git log -1 --oneline
+          git describe --tags --always
+          test -f ThreeOneOSFive/views/PatchProjectsView.swift
+          grep -Fq 'FREE FIRE NORMAL' ThreeOneOSFive/views/PatchProjectsView.swift
+          grep -Fq 'FREE FIRE MAX' ThreeOneOSFive/views/PatchProjectsView.swift
+          grep -Fq 'HS ALTO' ThreeOneOSFive/views/PatchProjectsView.swift
+          grep -Fq 'HS BARRIGA' ThreeOneOSFive/views/PatchProjectsView.swift
+          grep -Fq 'HS PESCOÇO' ThreeOneOSFive/views/PatchProjectsView.swift
+          echo "Source validation passed."
+      - name: Clean previous outputs
+        script: |
+          set -euo pipefail
+          rm -rf build-clean artifacts clean.log build.log
+      - name: Build unsigned Release app
+        script: |
+          set -euo pipefail
+          DERIVED_DATA=build-clean
+          xcodebuild \
+            -project ThreeOneOSFive.xcodeproj \
+            -scheme 3105 \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$DERIVED_DATA" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            VALIDATE_PRODUCT=YES \
+            clean 2>&1 | tee clean.log
+          xcodebuild \
+            -project ThreeOneOSFive.xcodeproj \
+            -scheme 3105 \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$DERIVED_DATA" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' \
+            VALIDATE_PRODUCT=YES \
+            build 2>&1 | tee build.log
+      - name: Package IPA artifact
+        script: |
+          set -euo pipefail
+          APP_PATH=$(find build-clean/Build/Products -maxdepth 3 -type d -name '*.app' | head -n 1)
+          test -n "$APP_PATH" && test -d "$APP_PATH"
+          echo "APP_PATH=$APP_PATH"
+          EXECUTABLE=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP_PATH/Info.plist")
+          VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Info.plist")
+          BUILD_NUMBER=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Info.plist")
+          echo "EXECUTABLE=$EXECUTABLE"
+          echo "VERSION=$VERSION"
+          echo "BUILD_NUMBER=$BUILD_NUMBER"
+          test -n "$EXECUTABLE"
+          test -f "$APP_PATH/$EXECUTABLE"
+          wc -c "$APP_PATH/$EXECUTABLE"
+          for resource in \
+            'Hs Alto -NESQUIK.3105' \
+            'Hs Barriga -NESQUIK.3105' \
+            'Hs Pescoço -NESQUIK.3105'; do
+            test -f "$APP_PATH/$resource" || {
+              echo "ERROR: missing bundled resource: $resource" >&2
+              exit 1
+            }
+            echo "bundled resource: $resource"
+          done
+          mkdir -p artifacts/Payload
+          cp -R "$APP_PATH" artifacts/Payload/
+          test -f "artifacts/Payload/$(basename "$APP_PATH")/Info.plist"
+          (cd artifacts && zip -qry BYPASS7_PROXY.ipa Payload)
+    artifacts:
+      - artifacts/BYPASS7_PROXY.ipa
+      - build-clean/Build/Products/**/*.app
+      - build-clean/Build/Products/**/*.dSYM
+      - clean.log
+      - build.log
