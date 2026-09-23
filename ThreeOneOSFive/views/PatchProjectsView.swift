@@ -53,7 +53,7 @@ private struct InjectFeaturesView: View {
             case .legitMax: packageID = "D91EC200-F257-465B-8D11-B876BF9270D7"
             case .umbigo: packageID = "F9389CD1-23D1-4A01-B849-B3355F56682D"
             case .headBodyMax: packageID = "674439E6-B83F-4745-879E-5D74CC89F306"
-            case .altoNesquik: packageID = "01EEE4BC-5AA0-4F09-82DB-FC3DBE3F1FE3"
+            case .altoNesquik: packageID = "DBC281FE-C31F-43C7-BA15-916F2C336514"
             case .barrigaNesquik: packageID = "07938D44-3F82-485B-B2B3-0C045AD85264"
             case .pescocoNesquik: packageID = "E00C9B3E-D93F-4354-BBA3-3BFDF7C60E63"
             }
