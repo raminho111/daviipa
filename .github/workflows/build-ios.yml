@@ -1,0 +1,101 @@
+name: Build iOS IPA
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build BYPASS7 PROXY IPA
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check for accidental secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          forbidden_files="$(git ls-files | grep -E '(^|/)(\.env(\.|$)|.*\.(pem|p12|pfx|key)$)' || true)"
+          if [ -n "$forbidden_files" ]; then
+            echo "::error::Potential secret files tracked:"
+            printf '%s\n' "$forbidden_files"
+            exit 1
+          fi
+          matches="$(git grep -IlE '-----BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY-----|Authorization:[[:space:]]*Bearer[[:space:]]+[A-Za-z0-9._-]+|(^|[^A-Za-z0-9])(sk_(live|test)_[A-Za-z0-9]+|gh[pousr]_[A-Za-z0-9]+)' -- . || true)"
+          if [ -n "$matches" ]; then
+            echo "::error::Potential embedded secret detected in:"
+            printf '%s\n' "$matches"
+            exit 1
+          fi
+
+      - name: Select latest installed Xcode
+        run: |
+          ls -d /Applications/Xcode*.app | sort -V
+          LATEST_XCODE=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          sudo xcode-select -s "$LATEST_XCODE"
+          xcodebuild -version
+          xcodebuild -showsdks
+
+      - name: Show project targets and schemes
+        run: xcodebuild -list -project ThreeOneOSFive.xcodeproj
+
+      - name: Build app (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -project ThreeOneOSFive.xcodeproj \
+            -scheme 3105 \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            VALIDATE_PRODUCT=YES \
+            build 2>&1 | tee build.log
+
+      - name: Locate built .app
+        id: locate_app
+        run: |
+          APP_PATH=$(find build/Build/Products -maxdepth 3 -type d -name "*.app" | head -n 1)
+          if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
+            echo "::error::No .app found in build products"
+            find build -type d -name "*.app" || true
+            exit 1
+          fi
+          echo "APP_PATH=$APP_PATH" >> "$GITHUB_OUTPUT"
+          echo "Built app: $APP_PATH"
+
+      - name: Package IPA (Payload/<app>.app -> BYPASS7_PROXY.ipa)
+        run: |
+          APP_PATH="${{ steps.locate_app.outputs.APP_PATH }}"
+          APP_NAME="$(basename "$APP_PATH")"
+          rm -rf Payload BYPASS7_PROXY.ipa
+          mkdir Payload
+          cp -R "$APP_PATH" "Payload/$APP_NAME"
+          test -f "Payload/$APP_NAME/Info.plist" || { echo "::error::Info.plist missing before zipping"; exit 1; }
+          zip -qry BYPASS7_PROXY.ipa Payload
+          echo "--- IPA structure ---"
+          unzip -l BYPASS7_PROXY.ipa | head -20
+          echo "--- Checks ---"
+          unzip -l BYPASS7_PROXY.ipa | grep -q "Payload/${APP_NAME}/Info.plist" || { echo "::error::Info.plist missing in Payload"; exit 1; }
+          unzip -l BYPASS7_PROXY.ipa | grep -q "Payload/${APP_NAME}/" || { echo "::error::Payload structure invalid"; exit 1; }
+          test -s BYPASS7_PROXY.ipa
+          ls -lh BYPASS7_PROXY.ipa
+
+      - name: Validate display name and icon inside the bundle
+        run: |
+          APP_PATH="${{ steps.locate_app.outputs.APP_PATH }}"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleDisplayName" "$APP_PATH/Info.plist" | grep -qx "VIVO" || {
+            echo "::error::CFBundleDisplayName is not VIVO"; exit 1; }
+          test -f "$APP_PATH/AppIcon60x60@2x.png" || test -f "$(find "$APP_PATH" -name 'AppIcon*' | head -1)" || {
+            echo "::error::AppIcon assets missing in bundle"; exit 1; }
+
+      - name: Upload artifact BYPASS7-PROXY-IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: BYPASS7-PROXY-IPA
+          path: BYPASS7_PROXY.ipa
+          if-no-files-found: error
