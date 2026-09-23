@@ -76,7 +76,7 @@ private struct InjectFeaturesView: View {
             case .legitMax: return "HS LEGIT"
             case .umbigo: return "HS UMBIGO"
                 // aba ff normal
-            case .headBodyMax: return "HS CABEÇA+CORPO"
+            case .headBodyMax: return "HS PEITO"
             case .altoNesquik: return "HS ALTO"
             case .barrigaNesquik: return "HS BARRIGA"
             case .pescocoNesquik: return "HS PESCOÇO"
