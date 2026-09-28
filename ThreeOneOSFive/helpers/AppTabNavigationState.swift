@@ -45,13 +45,13 @@ struct FeatureVisibility: Equatable {
 
     func isVisible(_ section: AppSection) -> Bool {
         switch section {
-        case .home, .patches:
+        case .home, .files:
             return true
         case .cleaner:
             return cleanerEnabled
         case .wallpapers:
             return wallpapersEnabled && wallpapersSupported
-        case .files:
+        case .patches:
             return false
         }
     }
