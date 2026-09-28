@@ -247,8 +247,12 @@ struct ContentView: View {
         switch section {
         case .home:
             DashboardView()
-        case .files:
-            AppDataBrowserView()
+       case .files:
+    AppDataBrowserView(
+        tabSession: filesTabSession,
+        onOpenSettings: openSettings,
+        onOpenLogs: openLogs
+    )
         case .patches, .cleaner, .wallpapers:
             EmptyView()
         }
