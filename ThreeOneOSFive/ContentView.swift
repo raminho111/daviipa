@@ -248,7 +248,7 @@ struct ContentView: View {
         case .home:
             DashboardView()
         case .files:
-            EmptyView()
+            AppDataBrowserView()
         case .patches, .cleaner, .wallpapers:
             EmptyView()
         }
