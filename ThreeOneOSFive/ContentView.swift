@@ -247,9 +247,9 @@ struct ContentView: View {
         switch section {
         case .home:
             DashboardView()
-        case .patches:
-            PatchProjectsView()
-        case .files, .cleaner, .wallpapers:
+        case .files:
+            FileBrowserView()
+        case .patches, .cleaner, .wallpapers:
             EmptyView()
         }
     }
